@@ -9,25 +9,20 @@ def polygon_to_binary_image(polygon_coords, img_size=200, padding=5):
     """
     Converts polygon coordinates into a binary image, ensuring boundaries are handled correctly.
     """
-    # Convert to numpy array
     x, y = zip(*polygon_coords)
     x, y = np.array(x), np.array(y)
 
-    # Normalize coordinates to fit within the image
     x -= np.min(x)
     y -= np.min(y)
     scale = (img_size - 2 * padding) / max(np.max(x), np.max(y))
     x = (x * scale + padding).astype(int)
     y = (y * scale + padding).astype(int)
 
-    # Create binary image
     binary_image = np.zeros((img_size, img_size), dtype=bool)
     rr, cc = polygon(y, x, shape=binary_image.shape)
     binary_image[rr, cc] = True
 
-    # Apply closing to ensure solid regions and fix thin boundaries
     binary_image = binary_closing(binary_image, disk(1))
-
     return binary_image
 
 def compute_medial_axis(binary_image):
@@ -49,6 +44,14 @@ def skeleton_to_graph(skeleton):
                         G.add_edge((x, y), (nx_, ny_), weight=1)
     return G
 
+def filter_skeleton_by_partition(original_skeleton, partition_mask):
+    """
+    Keeps only the skeleton pixels that are inside the new partition.
+    """
+    filtered_skeleton = np.zeros_like(original_skeleton, dtype=bool)
+    filtered_skeleton[(original_skeleton > 0) & (partition_mask > 0)] = True
+    return filtered_skeleton
+
 def find_boundary_nodes(binary_image, G):
     boundary_nodes = []
     for node in G.nodes:
@@ -65,10 +68,6 @@ def compute_area(binary_image):
     return np.sum(binary_image)
 
 def evaluate_cut(binary_image, cut_path, target_ratio, total_area):
-    """
-    Evaluates the area difference after cutting along the given path,
-    with respect to a target area split ratio.
-    """
     mask = np.copy(binary_image)
     for x, y in cut_path:
         mask[y, x] = False
@@ -76,7 +75,7 @@ def evaluate_cut(binary_image, cut_path, target_ratio, total_area):
     dilated_cut = np.zeros_like(mask)
     for x, y in cut_path:
         dilated_cut[y, x] = True
-    dilated_cut = binary_dilation(dilated_cut, disk(3))  # Stronger dilation
+    dilated_cut = binary_dilation(dilated_cut, disk(3))
     mask[dilated_cut] = False
 
     labeled_img = label(mask, connectivity=2)
@@ -92,18 +91,13 @@ def evaluate_cut(binary_image, cut_path, target_ratio, total_area):
     if len(areas) != 2:
         return float('inf'), None
 
-    # Compute target areas
     target_area_1 = total_area * target_ratio
     target_area_2 = total_area * (1 - target_ratio)
 
-    # Compute area difference from target
     area_diff = abs(areas[0] - target_area_1) + abs(areas[1] - target_area_2)
     return area_diff, areas
 
 def find_optimal_cut(binary_image, skeleton, G, target_ratio, total_area):
-    """
-    Finds the cut that best matches the desired area split.
-    """
     boundary_nodes = find_boundary_nodes(binary_image, G)
     best_cut = None
     best_diff = float('inf')
@@ -123,38 +117,43 @@ def find_optimal_cut(binary_image, skeleton, G, target_ratio, total_area):
 
     return best_cut, best_areas, best_diff
 
-def plot_cut_step(original_img, cut_path, regions, step):
-    plt.figure(figsize=(8, 6))
-    plt.imshow(original_img, cmap='gray', alpha=0.4, origin='lower')
+def plot_cut_step(original_img, cut_path, regions, skeleton_for_cut, step):
+    fig, axes = plt.subplots(1, 2, figsize=(14, 6))
 
-    # Plot the cut
+    axes[0].imshow(original_img, cmap='gray', alpha=0.4, origin='lower')
     if cut_path:
         cut_x, cut_y = zip(*cut_path)
-        plt.plot(cut_x, cut_y, color='blue', linewidth=2, label='Cut Path')
+        axes[0].plot(cut_x, cut_y, color='blue', linewidth=2, label='Cut Path')
 
-    # Plot resulting regions
     colors = ['red', 'green']
     for idx, region in enumerate(regions):
         y, x = np.where(region)
-        plt.scatter(x, y, color=colors[idx % len(colors)], s=1, label=f'Region {idx+1}')
+        axes[0].scatter(x, y, color=colors[idx % len(colors)], s=1, label=f'Region {idx+1}')
 
-    plt.title(f"Step {step}: After Cut")
-    plt.legend()
+    axes[0].set_title(f"Step {step}: After Cut")
+    axes[0].legend()
+
+    axes[1].imshow(original_img, cmap='gray', alpha=0.4, origin='lower')
+    skeleton_y, skeleton_x = np.where(skeleton_for_cut)
+    axes[1].scatter(skeleton_x, skeleton_y, color='orange', s=1, label='Medial Axis Used')
+    axes[1].set_title(f"Step {step}: Medial Axis Used")
+    axes[1].legend()
+
+    plt.tight_layout()
     plt.show()
 
 def sequential_partition(polygon_coords, num_partitions, img_size=200):
-    """
-    Sequentially partition the polygon into num_partitions, enforcing area ratios.
-    """
     partitions = []
     cut_paths = []
     binary_img = polygon_to_binary_image(polygon_coords, img_size)
-    medial_axis_img = compute_medial_axis(binary_img)
-    G = skeleton_to_graph(medial_axis_img)
+    original_skeleton = compute_medial_axis(binary_img)
+    G = skeleton_to_graph(original_skeleton)
     total_area = compute_area(binary_img)
 
     queue = [(binary_img, G, total_area, num_partitions)]
-    step = 1  # Step counter for plotting
+    step = 1
+
+    current_skeleton = original_skeleton  # Start with the original skeleton
 
     while queue:
         current_img, current_G, current_area, remaining_parts = queue.pop(0)
@@ -163,19 +162,16 @@ def sequential_partition(polygon_coords, num_partitions, img_size=200):
             partitions.append(current_img)
             continue
 
-        # Compute target ratio (e.g., for 3 parts: first cut 1/3 and 2/3)
         target_ratio = 1 / remaining_parts
 
-        # Find optimal cut with the target ratio
         optimal_cut, cut_areas, area_diff = find_optimal_cut(
-            current_img, compute_medial_axis(current_img), current_G, target_ratio, current_area
+            current_img, current_skeleton, current_G, target_ratio, current_area
         )
 
         if not optimal_cut:
             partitions.append(current_img)
             continue
 
-        # Apply the cut
         mask = np.copy(current_img)
         for x, y in optimal_cut:
             mask[y, x] = False
@@ -196,22 +192,25 @@ def sequential_partition(polygon_coords, num_partitions, img_size=200):
         regions = [labeled_img == i for i in unique_labels if i != 0]
         regions = sorted(regions, key=lambda x: np.sum(x), reverse=True)
 
-        # Plot current step with the cut and resulting regions
-        plot_cut_step(current_img, optimal_cut, regions[:2], step)
-        step += 1
-
         larger_region = regions[0]
         smaller_region = regions[1]
+
+        plot_cut_step(current_img, optimal_cut, regions[:2], current_skeleton, step)
+        step += 1
+
+        # Only keep skeleton pixels inside the new partition
+        filtered_skeleton = filter_skeleton_by_partition(original_skeleton, larger_region)
+        new_medial_axis = compute_medial_axis(larger_region)
+        composed_skeleton = np.logical_or(filtered_skeleton, new_medial_axis)
+
+        # Update for next cut
+        current_skeleton = composed_skeleton
+        new_G = skeleton_to_graph(composed_skeleton)
 
         partitions.append(smaller_region)
         cut_paths.append(optimal_cut)
 
-        # Recompute medial axis for the remaining region and merge with the original
-        new_medial_axis = compute_medial_axis(larger_region)
-        new_G = skeleton_to_graph(new_medial_axis)
-        merged_G = nx.compose(current_G, new_G)
-
-        queue.append((larger_region, merged_G, np.sum(larger_region), remaining_parts - 1))
+        queue.append((larger_region, new_G, np.sum(larger_region), remaining_parts - 1))
 
     return partitions, cut_paths
 
@@ -220,7 +219,9 @@ def plot_partitions(binary_img, partitions, cut_paths):
     plt.imshow(binary_img, cmap='gray', alpha=0.6, origin='lower')
 
     colors = ['red', 'blue', 'green', 'purple', 'orange', 'cyan', 'yellow']
-    for idx, (partition, cut) in enumerate(zip(partitions, cut_paths)):
+
+    # Plot partitions with corresponding cuts
+    for idx, (partition, cut) in enumerate(zip(partitions[:-1], cut_paths)):
         mask_y, mask_x = np.where(partition)
         plt.scatter(mask_x, mask_y, color=colors[idx % len(colors)], s=1, label=f'Partition {idx+1}')
 
@@ -228,26 +229,30 @@ def plot_partitions(binary_img, partitions, cut_paths):
             cut_x, cut_y = zip(*cut)
             plt.plot(cut_x, cut_y, color=colors[idx % len(colors)], linewidth=2)
 
+        print(f"Partition {idx+1} plotted with area: {np.sum(partition)}")
+
+    # Plot the last partition (which has no cut path)
+    last_partition = partitions[-1]
+    mask_y, mask_x = np.where(last_partition)
+    plt.scatter(mask_x, mask_y, color=colors[(len(partitions)-1) % len(colors)], s=1, label=f'Partition {len(partitions)}')
+
+    print(f"Partition {len(partitions)} plotted (no cut) with area: {np.sum(last_partition)}")
+
     plt.title("Final Partitions with Cuts")
     plt.legend()
     plt.show()
 
 if __name__ == "__main__":
     # Example Polygon (Star Shape)
-    polygon_coords = [(0,0), (3,0), (3,3), (0,3), (0,0)] # Square
+    #polygon_coords = [(0,0), (3,0), (3,3), (0,3), (0,0)] # Square
     #polygon_coords = [(0,0), (6,0), (6,3), (0,3), (0,0)] # Rectangle
-    #polygon_coords = [(0,0), (3,0), (1.5,3), (0,0)] # Triangle
+    polygon_coords = [(0,0), (3,0), (1.5,3), (0,0)] # Triangle
     #polygon_coords = [(0,0), (3,0), (3, 0.5), (0.5, 2.5), (3, 2.5), (3, 3), (0,3), (0,2.5), (2.5, 0.5), (0, 0.5), (0,0)] # Z-BEAM
     #polygon_coords = np.load('bunny_cross_section_scaled.npy')
+    num_partitions = 4
+    image_size=200
+    binary_img = polygon_to_binary_image(polygon_coords, img_size=image_size)
 
-    # Number of partitions
-    num_partitions = 3
-
-    # Rasterize Polygon
-    binary_img = polygon_to_binary_image(polygon_coords, img_size=100)
-
-    # Perform Sequential Partitioning
-    partitions, cut_paths = sequential_partition(polygon_coords, num_partitions, img_size=100)
-
-    # Plot Final Result
+    partitions, cut_paths = sequential_partition(polygon_coords, num_partitions, img_size=image_size)
+    print(len(cut_paths), len(partitions))
     plot_partitions(binary_img, partitions, cut_paths)

@@ -1,35 +1,31 @@
 import numpy as np
 import matplotlib.pyplot as plt
 from skimage.draw import polygon
-from skimage.morphology import medial_axis
+from skimage.morphology import medial_axis, binary_closing, disk
 
-def polygon_to_binary_image(polygon_coords, img_size=200):
-    """
-    Converts a polygon given by a list of coordinates to a binary image.
-    
-    Args:
-        polygon_coords: List of (x, y) tuples defining the polygon.
-        img_size: Size of the square image.
-        
-    Returns:
-        Binary image with the polygon filled in.
-    """
-    # Create an empty binary image
-    binary_image = np.zeros((img_size, img_size), dtype=bool)
 
-    # Convert polygon coordinates to NumPy arrays
+def polygon_to_binary_image(polygon_coords, img_size=200, padding=5):
+    """
+    Converts polygon coordinates into a binary image, ensuring boundaries are handled correctly.
+    """
+    # Convert to numpy array
     x, y = zip(*polygon_coords)
-    
-    # Scale coordinates to fit within the image size
-    x = np.array(x) - min(x)
-    y = np.array(y) - min(y)
+    x, y = np.array(x), np.array(y)
 
-    x = (x / max(x) * (img_size - 1)).astype(int)
-    y = (y / max(y) * (img_size - 1)).astype(int)
+    # Normalize coordinates to fit within the image
+    x -= np.min(x)
+    y -= np.min(y)
+    scale = (img_size - 2 * padding) / max(np.max(x), np.max(y))
+    x = (x * scale + padding).astype(int)
+    y = (y * scale + padding).astype(int)
 
-    # Fill the polygon using rasterization
+    # Create binary image
+    binary_image = np.zeros((img_size, img_size), dtype=bool)
     rr, cc = polygon(y, x, shape=binary_image.shape)
     binary_image[rr, cc] = True
+
+    # Apply closing to ensure solid regions and fix thin boundaries
+    binary_image = binary_closing(binary_image, disk(1))
 
     return binary_image
 
@@ -43,7 +39,7 @@ def compute_medial_axis(binary_image):
     Returns:
         Skeletonized image (medial axis).
     """
-    skeleton, _ = medial_axis(binary_image, return_distance=True)
+    skeleton = medial_axis(binary_image)
     return skeleton
 
 def extract_skeleton_coordinates(skeleton_image):
@@ -60,10 +56,10 @@ def extract_skeleton_coordinates(skeleton_image):
     return list(zip(x, y))
 
 # Example Polygon (Star Shape)
-polygon_coords = [(0,0), (3,0), (3,3), (0,3), (0,0)] # Square
+#polygon_coords = [(0,0), (3,0), (3,3), (0,3), (0,0)] # Square
 #polygon_coords = [(0,0), (6,0), (6,3), (0,3), (0,0)] # Rectangle
 #polygon_coords = [(0,0), (3,0), (1.5,3), (0,0)] # Triangle
-#polygon_coords = [(0,0), (3,0), (3, 0.5), (0.5, 2.5), (3, 2.5), (3, 3), (0,3), (0,2.5), (2.5, 0.5), (0, 0.5), (0,0)] # Z-BEAM
+polygon_coords = [(0,0), (3,0), (3, 0.5), (0.5, 2.5), (3, 2.5), (3, 3), (0,3), (0,2.5), (2.5, 0.5), (0, 0.5), (0,0)] # Z-BEAM
 #polygon_coords = np.load('bunny_cross_section_scaled.npy')
 
 # Convert polygon to binary image
