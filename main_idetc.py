@@ -32,9 +32,9 @@ def run_partition_optimization(G, n_divisions, input_polygon, objective_function
 
     ga_instance = pygad.GA(
         num_generations=100,
-        num_parents_mating=10,
+        num_parents_mating=20,
         fitness_func=fitness_func,
-        sol_per_pop=30,
+        sol_per_pop=100,
         num_genes=num_genes,
         gene_space=gene_space,
         mutation_type="random",
@@ -82,6 +82,7 @@ if __name__ == "__main__":
     #input_polygon_coords = [(0,0), (6,0), (6,3), (0,3), (0,0)] # Rectangle
     #input_polygon_coords = [(0,0), (3,0), (1.5,3), (0,0)] # Triangle
     #input_polygon_coords = [(0,0), (3,0), (3, 0.5), (0.5, 2.5), (3, 2.5), (3, 3), (0,3), (0,2.5), (2.5, 0.5), (0, 0.5), (0,0)] # Z-BEAM
+    #input_polygon_coords = [(0,0), (3,0), (3, 0.5), (2, 0.5), (2, 2.5), (3, 2.5), (3, 3), (1, 3), (1, 0.5), (0, 0.5), (0,0)] # WEIRD-BEAM
     input_polygon_coords = np.load('bunny_cross_section_scaled.npy') 
     buffer_size = 0.05
 
@@ -97,7 +98,7 @@ if __name__ == "__main__":
 
     #G = connect_limbs_to_boundary(G, input_polygon_coords)
 
-    best_solution = run_partition_optimization(G, 6, input_polygon_coords, calculate_area_imbalance_l2)
+    best_solution = run_partition_optimization(G, 4, input_polygon_coords, calculate_area_imbalance_l2)
 
     all_nodes = list(G.nodes)
     selected_branches = np.array([all_nodes[int(idx)] for idx in best_solution])
