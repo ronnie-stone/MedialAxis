@@ -10,81 +10,20 @@ from plot_custom_solution import plot_custom_solution
 from create_polygon import create_polygon
 from chebyshev_points import find_heaviest_branching_point  
 from computer_bisectors_at_branch import compute_bisectors_at_branch
+from idetc_main_alg import find_best_partition_and_nodes
 import warnings
 warnings.filterwarnings("ignore", module="pygad")
+import networkx as nx
 
-def solve_partition_equation(n_divisions):
+
+def run_partition_optimization(G, n_divisions, input_polygon, all_bisectors, objective_function, box_value=0.5):
     """
-    Solve 3a + 2b = n_divisions for non-negative integers a, b.
-    The goal is to maximize a (maximize the number of 3-bisector branching points).
-
-    Parameters:
-        n_divisions (int): Desired number of partitions.
-
-    Returns:
-        (a, b): Number of degree-3 and degree-2 branching points.
+    Runs a Genetic Algorithm to optimize partitioning.
+    Calls find_best_partition_and_nodes within the GA fitness function.
     """
-    max_a = n_divisions // 3  # Upper bound on number of 3-bisector branches.
-    
-    for a in range(max_a, -1, -1):
-        remaining = n_divisions - 3 * a
-        if remaining % 2 == 0:
-            b = remaining // 2
-            return a, b
-    
-    raise ValueError(f"No valid integer solution for 3a + 2b = {n_divisions}.")
 
-def run_partition_optimization(G, n_divisions, input_polygon, objective_function, box_value=0.1):
-    """
-    Genetic algorithm to find optimal Voronoi site placements along bisectors of the heaviest branch(es).
-
-    Parameters:
-        G (networkx.Graph): The medial axis graph.
-        n_divisions (int): Number of partitions.
-        input_polygon (list): Polygon coordinates.
-        objective_function (callable): Objective function taking (Voronoi sites, input polygon).
-
-    Returns:
-        np.ndarray: Array of Voronoi site coordinates.
-    """
-    if n_divisions < 3:
-        raise ValueError("n_divisions must be at least 3.")
-
-    polygon = create_polygon(input_polygon)
-
-    # Step 1: Solve for (a, b) where 3a + 2b = n_divisions
-    a, b = solve_partition_equation(n_divisions)
-
-    print(f"n_divisions={n_divisions} => Using {a} degree-3 branches and {b} degree-2 branches.")
-
-    # Step 2: Identify heaviest branches (we need exactly a + b branching points)
-    selected_branches = []
-
-    tempG = G.copy()  # Work on a temporary copy to avoid modifying the original graph
-
-    for _ in range(a + b):
-        heaviest_branch, max_radius, idx = find_heaviest_branching_point(tempG, polygon)
-
-        selected_branches.append((heaviest_branch, max_radius))
-
-        # Remove the selected branch from consideration for the next iteration
-        tempG.remove_node(heaviest_branch)
-
-    # Step 3: Compute bisectors based on degree-3 or degree-2 requirement
-    all_bisectors = []
-    for i, (branch, _) in enumerate(selected_branches):
-        if i < a:  # First 'a' branches use 3 bisectors
-            bisectors = compute_bisectors_at_branch(G, branch, n_bisectors=3)
-        else:      # Remaining 'b' branches use 2 bisectors
-            bisectors = compute_bisectors_at_branch(G, branch, n_bisectors=2)
-
-        all_bisectors.extend([(branch, bis) for bis in bisectors])
-
-    if len(all_bisectors) != n_divisions:
-        raise ValueError(f"Expected exactly {n_divisions} bisectors, but found {len(all_bisectors)}")
-
-    # Step 4: Genetic Algorithm setup — each gene is a normalized distance along its bisector
-    num_genes = n_divisions
+    # Step 3: Genetic Algorithm setup
+    num_genes = len(all_bisectors)
     gene_space = [{'low': 0.01, 'high': 1.0} for _ in range(num_genes)]
 
     def fitness_func(ga_instance, solution, solution_idx):
@@ -101,7 +40,7 @@ def run_partition_optimization(G, n_divisions, input_polygon, objective_function
         num_generations=100,
         num_parents_mating=20,
         fitness_func=fitness_func,
-        sol_per_pop=100,
+        sol_per_pop=50,
         num_genes=num_genes,
         gene_space=gene_space,
         mutation_type="random",
@@ -116,7 +55,7 @@ def run_partition_optimization(G, n_divisions, input_polygon, objective_function
     best_solution, best_solution_fitness, _ = ga_instance.best_solution()
     print(f"Best normalized distances: {best_solution}, Score: {-best_solution_fitness:.4f}")
 
-    # Step 5: Convert final normalized distances into Voronoi site coordinates
+    # Step 4: Convert final normalized distances into Voronoi site coordinates
     best_sites = []
     for i, (bp, bisector) in enumerate(all_bisectors):
         t = best_solution[i]
@@ -124,9 +63,6 @@ def run_partition_optimization(G, n_divisions, input_polygon, objective_function
         best_sites.append(site)
 
     return np.array(best_sites)
-
-
-
 
 # ----------------- Example Objective Function (Placeholder) -----------------
 
@@ -156,38 +92,73 @@ def calculate_area_imbalance_l2(selected_sites, input_polygon):
 
     return -l2_norm  # Negative because PyGAD maximizes
 
+
 if __name__ == "__main__":
 
-    #input_polygon_coords = [(0,0), (3,0), (3,3), (0,3), (0,0)] # Square
-    #input_polygon_coords = [(0,0), (6,0), (6,3), (0,3), (0,0)] # Rectangle
-    #input_polygon_coords = [(0,0), (3,0), (1.5,3), (0,0)] # Triangle
-    #input_polygon_coords = [(0,0), (3,0), (3, 0.5), (0.5, 2.5), (3, 2.5), (3, 3), (0,3), (0,2.5), (2.5, 0.5), (0, 0.5), (0,0)] # Z-BEAM
-    #input_polygon_coords = [(0,0), (3,0), (3, 0.5), (2, 0.5), (2, 2.5), (3, 2.5), (3, 3), (1, 3), (1, 0.5), (0, 0.5), (0,0)] # WEIRD-BEAM
+    # Input polygon (choose one)
     input_polygon_coords = np.load('bunny_cross_section_scaled.npy') 
     buffer_size = 0.05
 
-    # Get medial axis:
+    # Step 1: Compute the Medial Axis and Transform to a Graph
+    medial_axis, radius_map = get_medial_axis(input_polygon_coords, num_samples=1000)
+    G = medial_axis_to_graph(medial_axis, radius_map)
 
-    medial_axis = get_medial_axis(input_polygon_coords, num_samples=1000)
+    # Step 2: Define the number of robots and find the best partition
+    N = 4  # Number of robots
+    best_partition, best_nodes, best_assignments = find_best_partition_and_nodes(G, N, alpha=1.0)
 
-    # Transform the medial axis into a graph:
+    print("Best Partition:", best_partition)
+    print("Best Nodes:", best_nodes)
+    print("Best Assignments:", best_assignments)
 
-    G = medial_axis_to_graph(medial_axis)
+    # Step 3: Compute bisectors for each selected node
+    all_bisectors = []
+    for node in best_nodes:
+        cluster_size = best_assignments[node]  # Get the assigned cluster size
+        bisectors = compute_bisectors_at_branch(G, node, n_bisectors=cluster_size)  # Compute bisectors
 
-    # Augment the graph to connect the one-degree vertices to the boundary:
+        # Store each bisector along with its originating node
+        all_bisectors.extend([(node, bis) for bis in bisectors])
 
-    #G = connect_limbs_to_boundary(G, input_polygon_coords)
+    # Step 4: Run partition optimization
+    best_solution = run_partition_optimization(G, N, input_polygon_coords, all_bisectors, calculate_area_imbalance_l2)
 
-    best_solution = run_partition_optimization(G, 5, input_polygon_coords, calculate_area_imbalance_l2)
-
-    # Plotting:
-
+    # Step 5: Create subplots for visualization
     fig, axes = plt.subplots(1, 2, figsize=(16, 6))
 
-    plot_medial_axis_vs_graph(input_polygon_coords, medial_axis, G, axes[0])
+    # ---- Figure 1: Graph Visualization ----
+    pos = {node: node for node in G.nodes}
+    degrees = dict(G.degree())
 
+    # Draw the medial axis graph
+    nx.draw(G, pos, with_labels=False, node_color='lightgray', edge_color='gray', node_size=25, ax=axes[0])
+    nx.draw_networkx_nodes(G, pos, nodelist=best_nodes, node_color='red', node_size=100, ax=axes[0])
+
+    # Annotate selected nodes with cluster size
+    for node in best_nodes:
+        x, y = pos[node]
+        axes[0].text(x, y + 0.2, f"cluster={best_assignments[node]}", fontsize=10, ha='center', color='black')
+
+    axes[0].set_title("Medial Axis Graph with Selected Nodes")
+
+    # Plot the medial axis edges
+    for u, v in G.edges():
+        x, y = zip(*[u, v])
+        axes[0].plot(x, y, 'k-', linewidth=2)
+
+    # Plot the bisectors from branching points
+    for i, (branching_point, bisector) in enumerate(all_bisectors):
+        end = np.array(branching_point) + bisector  # Bisectors are now scaled by radius
+        axes[0].plot([branching_point[0], end[0]], [branching_point[1], end[1]], 
+                     linestyle='--', linewidth=2, label=f'Bisector {i+1}')
+
+    # ---- Figure 2: Tessellation Visualization ----
     polygons_A_star, polygons_B, polygons_A, polygons_A_star_areas, polygons_B_areas, polygons_A_areas = tessellate_with_buffer(best_solution, input_polygon_coords, buffer_size)
 
     print("A Areas: " + str(polygons_A_areas))
-    plot_custom_solution(best_solution.flatten().tolist(), polygons_A_star, polygons_B, 0, 0, axes[1])
+
+    plot_custom_solution(best_solution.flatten().tolist(), polygons_A_star, polygons_B, 0, 0, ax=axes[1])
+    axes[1].set_title("Tessellation Results")
+
+    # Show the plots
     plt.show()
