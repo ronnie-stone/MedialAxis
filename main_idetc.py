@@ -114,13 +114,16 @@ def mixed_integer_scheduler(solution, input_polygon, G):
 
 if __name__ == "__main__":
 
-    input_polygon_coords = [(0,0), (3,0), (3,3), (0,3), (0,0)] # Square
+    #input_polygon_coords = [(0,0), (3,0), (3,3), (0,3), (0,0)] # Square
     #input_polygon_coords = [(0,0), (6,0), (6,3), (0,3), (0,0)] # Rectangle
     #input_polygon_coords = [(0,0), (3,0), (1.5,3), (0,0)] # Triangle
     #input_polygon_coords = [(0,0), (3,0), (3, 0.5), (0.5, 2.5), (3, 2.5), (3, 3), (0,3), (0,2.5), (2.5, 0.5), (0, 0.5), (0,0)] # Z-BEAM
     #input_polygon_coords = [(0,0), (3,0), (3, 0.5), (2, 0.5), (2, 2.5), (3, 2.5), (3, 3), (1, 3), (1, 0.5), (0, 0.5), (0,0)] # WEIRD-BEAM
     #input_polygon_coords = np.load('circle_scaled.npy') 
-    input_polygon_coords = np.load('bunny_cross_section_scaled.npy') 
+    #input_polygon_coords = np.load('bunny_cross_section_scaled.npy')
+    input_polygon_coords = np.load('BenchyPoints_scaled.npy') 
+    #input_polygon_coords = np.load('HorsePoints_scaled.npy') 
+    input_polygon_coords = np.load('TeaPotPoints_scaled.npy') 
     buffer_size = 0.05
 
     # Get medial axis:
@@ -144,7 +147,7 @@ if __name__ == "__main__":
 
     #G = connect_limbs_to_boundary(G, input_polygon_coords)
 
-    best_solution = run_partition_optimization(G, 7, input_polygon_coords, calculate_area_imbalance_l2)
+    best_solution = run_partition_optimization(G, 3, input_polygon_coords, calculate_area_imbalance_l2)
     #best_solution = run_partition_optimization(G, 4, input_polygon_coords, mixed_integer_scheduler)
 
     all_nodes = list(G.nodes)
