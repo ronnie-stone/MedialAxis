@@ -41,7 +41,7 @@ def run_partition_optimization(G, n_divisions, input_polygon, objective_function
         num_generations=100,
         num_parents_mating=20,
         fitness_func=fitness_func,
-        sol_per_pop=30,
+        sol_per_pop=50,
         num_genes=num_genes,
         gene_space=gene_space,
         mutation_type="random",
@@ -121,10 +121,10 @@ if __name__ == "__main__":
     #input_polygon_coords = [(0,0), (3,0), (3, 0.5), (2, 0.5), (2, 2.5), (3, 2.5), (3, 3), (1, 3), (1, 0.5), (0, 0.5), (0,0)] # WEIRD-BEAM
     #input_polygon_coords = np.load('circle_scaled.npy') 
     #input_polygon_coords = np.load('bunny_cross_section_scaled.npy')
-    input_polygon_coords = np.load('BenchyPoints_scaled.npy') 
+    #input_polygon_coords = np.load('BenchyPoints_scaled.npy') 
     #input_polygon_coords = np.load('HorsePoints_scaled.npy') 
     input_polygon_coords = np.load('TeaPotPoints_scaled.npy') 
-    buffer_size = 0.05
+    buffer_size = 0.001
 
     # Get medial axis:
 
@@ -147,7 +147,7 @@ if __name__ == "__main__":
 
     #G = connect_limbs_to_boundary(G, input_polygon_coords)
 
-    best_solution = run_partition_optimization(G, 3, input_polygon_coords, calculate_area_imbalance_l2)
+    best_solution = run_partition_optimization(G, 10, input_polygon_coords, calculate_area_imbalance_l2)
     #best_solution = run_partition_optimization(G, 4, input_polygon_coords, mixed_integer_scheduler)
 
     all_nodes = list(G.nodes)
@@ -155,12 +155,12 @@ if __name__ == "__main__":
 
     # Plotting:
 
-    fig, axes = plt.subplots(1, 2, figsize=(16, 6))
+    fig, axes = plt.subplots(1, 1, figsize=(16, 6))
 
-    plot_medial_axis_vs_graph(input_polygon_coords, medial_axis, G, axes[0])
+    plot_medial_axis_vs_graph(input_polygon_coords, medial_axis, G, axes)
 
     polygons_A_star, polygons_B, polygons_A, polygons_A_star_areas, polygons_B_areas, polygons_A_areas = tessellate_with_buffer(selected_branches, input_polygon_coords, buffer_size)
-    plot_custom_solution(selected_branches.flatten().tolist(), polygons_A_star, polygons_B, 0, 0, axes[1])
+    plot_custom_solution(selected_branches.flatten().tolist(), polygons_A_star, polygons_B, 0, 0, axes)
     plt.show()
 
 

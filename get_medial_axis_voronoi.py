@@ -3,7 +3,20 @@ import matplotlib.pyplot as plt
 from shapely.geometry import Polygon, LineString, MultiLineString, Point
 from shapely.ops import unary_union
 from scipy.spatial import Voronoi, voronoi_plot_2d
+import matplotlib.colors as mcolors
+import matplotlib.cm as cm
 
+
+# Define a function to assign color based on normalized radius values
+def get_color(value, r_min, r_max, colormap):
+    norm = mcolors.Normalize(vmin=r_min, vmax=r_max)
+    return colormap(norm(value))
+
+# Define a function to assign color based on normalized radius values
+#def get_color(value, r_min, r_max, colormap, alpha):
+#    norm = mcolors.Normalize(vmin=r_min, vmax=r_max)
+#    color = colormap(norm(value))
+#    return (color[0], color[1], color[2], alpha)  # Adjust transparency
 
 def sample_polygon_perimeter(polygon_coords, num_samples):
     """
@@ -103,28 +116,39 @@ def get_medial_axis(polygon_coords, num_samples=200):
 
 
 if __name__ == "__main__":
-    # polygon_coords = [(0, 0), (3, 0), (3, 3), (0, 3), (0, 0)]  # Square
-    # polygon_coords = [(0,0), (6,0), (6,3), (0,3), (0,0)]  # Rectangle
-    # polygon_coords = [(0,0), (3,0), (1.5,3), (0,0)]  # Triangle
-    # polygon_coords = [(0,0), (3,0), (3, 0.5), (0.5, 2.5), (3, 2.5), (3, 3), (0,3), (0,2.5), (2.5, 0.5), (0, 0.5), (0,0)] # Z-BEAM
-    polygon_coords = [(0,0), (3,0), (3, 0.5), (2, 0.5), (2, 2.5), (3, 2.5), (3, 3), (1, 3), (1, 0.5), (0, 0.5), (0,0)] # WEIRD-BEAM
-    # polygon_coords = np.load('bunny_cross_section_scaled.npy')
+    #input_polygon_coords = [(0,0), (3,0), (3,3), (0,3), (0,0)] # Square
+    #input_polygon_coords = [(0,0), (6,0), (6,3), (0,3), (0,0)] # Rectangle
+    #input_polygon_coords = [(0,0), (6,0), (6,3), (3.1, 3), (3, 3.1), (2.9,3), (0,3), (0,0)] # Unstable Rectangle
+    #input_polygon_coords = [(0,0), (3,0), (1.5,3), (0,0)] # Triangle
+    #input_polygon_coords = [(0,0), (3,0), (3, 0.5), (0.5, 2.5), (3, 2.5), (3, 3), (0,3), (0,2.5), (2.5, 0.5), (0, 0.5), (0,0)] # Z-BEAM
+    input_polygon_coords = [(0,0), (3,0), (3, 0.5), (2, 0.5), (2, 2.5), (3, 2.5), (3, 3), (1, 3), (1, 0.5), (0, 0.5), (0,0)] # WEIRD-BEAM
+    #input_polygon_coords = np.load('circle_scaled.npy') 
+    #input_polygon_coords = np.load('bunny_cross_section_scaled.npy')
+    #input_polygon_coords = np.load('BenchyPoints_scaled.npy') 
+    #input_polygon_coords = np.load('HorsePoints_scaled.npy') 
+    #input_polygon_coords = np.load('TeaPotPoints_scaled.npy') 
 
-    num_samples = 100  # Set number of samples along perimeter
+    num_samples = 500  # Set number of samples along perimeter
+    #sample_sizes = [50, 100, 500, 1000]  # Different levels of approximation
 
     # Compute medial axis (polygon-internal Voronoi edges)
-    medial_axis, radius_map = get_medial_axis(polygon_coords, num_samples=num_samples)
-    print(radius_map)
+    medial_axis, radius_map = get_medial_axis(input_polygon_coords, num_samples=num_samples)
+    #print(radius_map)
 
     # Compute Voronoi diagram for the sampled points (the real sites used for medial axis)
-    sampled_points = sample_polygon_perimeter(polygon_coords, num_samples)
+    sampled_points = sample_polygon_perimeter(input_polygon_coords, num_samples)
     vor = Voronoi(sampled_points)
 
     # Plot everything
-    polygon = Polygon(polygon_coords)
+    polygon = Polygon(input_polygon_coords)
     x, y = polygon.exterior.xy
 
-    plt.figure(figsize=(10, 8))
+    fig, ax = plt.subplots(figsize=(10, 8))
+
+    # Define color scheme using a colormap
+    #radii = np.array(list(radius_map.values()))
+    #r_min, r_max = np.min(radii), np.max(radii)
+    #colormap = cm.Reds  # Using a shades-of-blue colormap
 
     # Plot polygon boundary
     plt.plot(x, y, 'k-', linewidth=2, label='Polygon')
@@ -145,11 +169,38 @@ if __name__ == "__main__":
         x, y = medial_axis.xy
         plt.plot(x, y, 'r-', linewidth=2, label='Medial Axis')
 
-    # Plot maximal inscribed circles
-    for (px, py), radius in radius_map.items():
-        circle = plt.Circle((px, py), radius, color='green', fill=False, linestyle='dashed', alpha=0.5)
-        plt.gca().add_patch(circle)
+    #Plot medial axis with color scheme
+    # if isinstance(medial_axis, MultiLineString):
+    #    for line in medial_axis.geoms:
+    #        x, y = line.xy
+    #        avg_radius = np.mean([radius_map.get((x[0], y[0]), 0), radius_map.get((x[1], y[1]), 0)])
+    #        color = get_color(avg_radius, r_min, r_max, colormap)
+    #        plt.plot(x, y, color=color, linewidth=2)
+    # elif isinstance(medial_axis, LineString):
+    #    x, y = medial_axis.xy
+    #    avg_radius = np.mean([radius_map.get((x[0], y[0]), 0), radius_map.get((x[1], y[1]), 0)])
+    #    color = get_color(avg_radius, r_min, r_max, colormap)
+    #    plt.plot(x, y, color=color, linewidth=2)
 
-    plt.legend()
-    plt.title("Polygon, Sampled Points, Voronoi Diagram, and Medial Axis")
+    # Add colorbar legend
+    #sm = plt.cm.ScalarMappable(cmap=colormap, norm=mcolors.Normalize(vmin=r_min, vmax=r_max))
+    #sm.set_array([])
+    #cbar = plt.colorbar(sm, ax=ax, orientation='vertical')
+
+    # Remove square 
+
+    ax.set_xticks([])
+    ax.set_yticks([])
+    ax.set_frame_on(False)  # Remove the square frame
+
+    # Plot maximal inscribed circles
+    #first_circle = True  # Flag to track first circle for labeling
+    #for (px, py), radius in radius_map.items():
+    #    circle = plt.Circle((px, py), radius, color='green', fill=False, linestyle='dashed', alpha=0.5, 
+    #                         label="Maximally Inscribed Circle" if first_circle else None)
+    #    plt.gca().add_patch(circle)
+    #    first_circle = False  # Disable label for subsequent circles
+
+    #plt.legend()
+    #plt.title("Polygon, Sampled Points, Voronoi Diagram, and Medial Axis")
     plt.show()

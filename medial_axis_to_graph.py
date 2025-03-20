@@ -4,6 +4,7 @@ from shapely.geometry import MultiLineString, LineString
 import matplotlib.pyplot as plt
 from get_medial_axis_voronoi import get_medial_axis
 from plot_medial_axis_vs_graph import plot_medial_axis_vs_graph
+from find_main_branch import find_main_branch
 
 
 def medial_axis_to_graph(medial_axis, radius_map):
@@ -52,8 +53,8 @@ if __name__ == "__main__":
     # polygon_coords = [(0,0), (6,0), (6,3), (0,3), (0,0)]  # Rectangle
     # polygon_coords = [(0,0), (3,0), (1.5,3), (0,0)]  # Triangle
     # polygon_coords = [(0,0), (3,0), (3, 0.5), (0.5, 2.5), (3, 2.5), (3, 3), (0,3), (0,2.5), (2.5, 0.5), (0, 0.5), (0,0)] # Z-BEAM
-    polygon_coords = [(0,0), (3,0), (3, 0.5), (2, 0.5), (2, 2.5), (3, 2.5), (3, 3), (1, 3), (1, 0.5), (0, 0.5), (0,0)] # WEIRD-BEAM
-    # polygon_coords = np.load('bunny_cross_section_scaled.npy')
+    #polygon_coords = [(0,0), (3,0), (3, 0.5), (2, 0.5), (2, 2.5), (3, 2.5), (3, 3), (1, 3), (1, 0.5), (0, 0.5), (0,0)] # WEIRD-BEAM
+    polygon_coords = np.load('bunny_cross_section_scaled.npy')
 
     medial_axis, radius_function = get_medial_axis(polygon_coords)
     G = medial_axis_to_graph(medial_axis, radius_function)

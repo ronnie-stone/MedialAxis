@@ -48,19 +48,19 @@ def plot_custom_solution(solution, polygons_A_star, polygons_B, minimum_robot_di
             for poly in BoundaryPolygon.geoms:
                 x, y = poly.exterior.xy
                 if not label:
-                    ax.fill(x, y, facecolor=color, alpha=0.4, edgecolor='none', label=str(i))
+                    ax.fill(x, y, facecolor=color, alpha=0.4, edgecolor='none')
                     label = True
                 else:
                     ax.fill(x, y, facecolor=color, alpha=0.4, edgecolor='none')
                 ax.plot(x, y, color='black', linewidth=1)
         else:
             x, y = BoundaryPolygon.exterior.xy
-            ax.fill(x, y, facecolor=color, alpha=0.4, edgecolor='none', label=str(i))
+            ax.fill(x, y, facecolor=color, alpha=0.4, edgecolor='none')
             ax.plot(x, y, color='black', linewidth=1)
 
     voronoi_points = [[solution[i], solution[i+1]] for i in range(0, len(solution), 2)]
     helper_points = [[-100,-100], [-100,100], [100,-100], [100,100]]
-    print(voronoi_points)
+    #print(voronoi_points)
     points = voronoi_points + helper_points
     points = np.array(points)
 
@@ -68,11 +68,11 @@ def plot_custom_solution(solution, polygons_A_star, polygons_B, minimum_robot_di
     #ax.scatter(np.array(fixed_points)[:, 0],  np.array(fixed_points)[:, 1], s=20, color='red', edgecolor='black')
     vor = Voronoi(points)
     voronoi_plot_2d(vor, ax=ax, show_points=False, show_vertices=False, line_colors='black')
-    ax.scatter(np.array(voronoi_points)[:, 0],  np.array(voronoi_points)[:, 1], s=20, color='red', edgecolor='black')
+    ax.scatter(np.array(voronoi_points)[:, 0],  np.array(voronoi_points)[:, 1], s=20, color='red', edgecolor='black', label="Voronoi sites")
     ax.set_aspect('equal')
     plt.xlim([-0.15,3.15])
     plt.ylim([-0.15,3.15])
-    #plt.legend()
+    plt.legend()
     #filepath1 = os.path.join(foldername, "Fig1.pdf")
     #plt.savefig(filepath1, bbox_inches='tight', format='pdf')
 
